@@ -1,0 +1,82 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "trexboost"
+version = "0.1.0"
+description = "FDR-controlled feature selection: the T-Rex selector with gradient-boosted trees (native, LightGBM or XGBoost) as the forward selector, with an sklearn-compatible API."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Idan Schatz" }]
+requires-python = ">=3.11"
+keywords = ["feature selection", "false discovery rate", "FDR", "T-Rex selector", "gradient boosting", "lightgbm", "xgboost", "knockoffs", "scikit-learn"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Typing :: Typed",
+]
+# Lower bounds are versions with Python 3.11+ wheels and no open security advisories.
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "scikit-learn>=1.6",
+    "pandas>=2.2",
+]
+
+[project.optional-dependencies]
+lightgbm = ["lightgbm>=4.6"]  # 4.6.0 fixes CVE-2024-43598
+xgboost = ["xgboost>=2.1"]
+report = ["matplotlib>=3.8"]
+all = ["trexboost[lightgbm,xgboost,report]"]
+dev = [
+    "trexboost[all]",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+    "pip-audit>=2.7",
+    "build>=1.2",
+    "twine>=6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/IdanSchatz/trexboost"
+Issues = "https://github.com/IdanSchatz/trexboost/issues"
+
+[tool.hatch.build.targets.sdist]
+include = ["src/trexboost", "tests", "examples", "README.md", "LICENSE", "CITATION.cff", "CHANGELOG.md"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trexboost"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+src = ["src", "tests", "examples"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "NPY", "RUF", "SIM", "PT"]
+ignore = ["E741", "SIM300", "PT011", "PT018"]
+
+[tool.ruff.lint.isort]
+known-local-folder = ["conftest"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B018"]
+"src/trexboost/reporting.py" = ["E501"]  # inline HTML/CSS and figure captions
+"examples/*" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = ["ignore::UserWarning:lightgbm", "ignore::FutureWarning:xgboost"]

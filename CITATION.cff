@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use trexboost, please cite the T-Rex selector paper and this software."
+title: "trexboost: FDR-controlled feature selection with the T-Rex selector and gradient-boosted trees"
+type: software
+authors:
+  - family-names: Schatz
+    given-names: Idan
+version: 0.1.0
+date-released: 2026-11-17
+license: Apache-2.0
+repository-code: "https://github.com/IdanSchatz/trexboost"
+keywords: [feature selection, false discovery rate, T-Rex selector, gradient boosting, knockoffs]
+references:
+  - type: article
+    title: "The terminating-random experiments selector: Fast high-dimensional variable selection with false discovery rate control"
+    authors:
+      - family-names: Machkour
+        given-names: Jasin
+      - family-names: Muma
+        given-names: Michael
+      - family-names: Palomar
+        given-names: Daniel P.
+    journal: "Signal Processing"
+    volume: 231
+    start: 109894
+    year: 2025
+    doi: "10.1016/j.sigpro.2025.109894"
