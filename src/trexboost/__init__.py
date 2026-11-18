@@ -4,4 +4,4 @@ from trexboost._selector import TRexBoostSelector
 from trexboost.stability import nogueira_stability, resample_selections, stability_report
 
 __all__ = ["TRexBoostSelector", "nogueira_stability", "resample_selections", "stability_report"]
-__version__ = "0.1.0"
+__version__ = "0.2.0"
