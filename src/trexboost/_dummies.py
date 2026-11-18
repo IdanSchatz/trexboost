@@ -11,6 +11,13 @@
   the way its real column does, so a null that is correlated with a true signal and its knockoff are
   selected at similar rates. Use it when features are correlated and the selected set has to be trusted
   (interpretation); it is conservative and costs power at tight targets.
+
+Categorical columns. Dummy ``i`` is built from real column ``i mod p`` and has that column's type. For a
+categorical column it is always a permuted copy, whatever ``kind`` is: same levels, same level frequencies,
+same missing share. This matters because a categorical split can group the levels in any way, so a null
+category with many levels finds a larger spurious gain than a numeric null does. Only dummies of the same
+type and cardinality compete with it fairly. With ``"knockoff"``, the Gaussian model is fitted to the
+numeric columns only, so categorical dummies do not mimic their column's dependence on the others.
 """
 
 from __future__ import annotations
@@ -58,32 +65,48 @@ def _rank_map(Z: np.ndarray, X_sorted: np.ndarray) -> np.ndarray:
 
 
 class DummyGenerator:
-    def __init__(self, kind: str, X: np.ndarray):
+    def __init__(self, kind: str, X: np.ndarray, categorical: np.ndarray | None = None):
         if kind not in ("permutation", "gaussian", "knockoff"):
             raise ValueError(f"dummies must be 'permutation', 'gaussian' or 'knockoff', got {kind!r}")
         self.kind = kind
         self.X = X
         self.n, self.p = X.shape
+        self.categorical = (
+            np.zeros(self.p, dtype=bool) if categorical is None else np.asarray(categorical, dtype=bool)
+        )
+        self._num = np.flatnonzero(~self.categorical)
         self._sampler = None
         self._X_sorted = None
-        if kind == "knockoff":
-            if not np.isfinite(X).all():
-                raise ValueError("dummies='knockoff' needs finite X; impute missing values first.")
-            self._sampler = KnockoffSampler(X)
-            self._X_sorted = np.sort(X, axis=0)
+        if kind == "knockoff" and len(self._num):
+            Xn = X[:, self._num]
+            if not np.isfinite(Xn).all():
+                raise ValueError("dummies='knockoff' needs finite numeric columns; impute them first.")
+            self._sampler = KnockoffSampler(Xn)
+            self._X_sorted = np.sort(Xn, axis=0)
+
+    def dummy_is_categorical(self, L: int) -> np.ndarray:
+        """Type of each of ``L`` dummies: dummy ``i`` copies the type of real column ``i mod p``."""
+        return self.categorical[np.arange(L) % self.p]
 
     def draw(self, L: int, rng: np.random.Generator) -> np.ndarray:
         """``L`` dummy columns, shape (n, L)."""
         n, p = self.n, self.p
-        if self.kind == "gaussian":
-            return rng.standard_normal((n, L))
         if self.kind == "permutation":
             D = np.empty((n, L))
             for i in range(L):
                 D[:, i] = self.X[rng.permutation(n), i % p]
             return D
-        blocks, need = [], L
-        while need > 0:
-            blocks.append(_rank_map(self._sampler.draw(rng), self._X_sorted))
-            need -= p
-        return np.hstack(blocks)[:, :L]
+        if self.kind == "gaussian":
+            D = rng.standard_normal((n, L))
+        else:
+            blocks, need = [], L
+            while need > 0:
+                B = np.empty((n, p))
+                if self._sampler is not None:
+                    B[:, self._num] = _rank_map(self._sampler.draw(rng), self._X_sorted)
+                blocks.append(B)
+                need -= p
+            D = np.hstack(blocks)[:, :L]
+        for i in np.flatnonzero(self.dummy_is_categorical(L)):
+            D[:, i] = self.X[rng.permutation(n), i % p]
+        return D

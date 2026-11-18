@@ -5,8 +5,9 @@
 gradient boosting as its forward selector, so it finds features with **nonlinear and threshold effects**
 that linear selectors miss, and it chooses **how many** features to keep from a target false discovery
 rate rather than a guessed `k`. The selector follows the scikit-learn API, with three boosting backends:
-built-in NumPy, LightGBM and XGBoost. A reporting module produces tables, figures and a self-contained
-HTML report.
+built-in NumPy, LightGBM and XGBoost. The LightGBM and XGBoost backends split natively on categorical
+features, and each categorical feature gets its own type-matched dummies. A reporting module produces
+tables, figures and a self-contained HTML report.
 
 ```python
 from trexboost import TRexBoostSelector
@@ -156,6 +157,45 @@ to enter**. That assumption breaks in two ways with trees, and the `dummies` par
 Combining model-X knockoffs with the T-Rex calibration, by using knockoff copies as dummies, is new in
 this package. Its FDR behaviour is established only empirically.
 
+### 4. Categorical features
+
+With `booster="xgboost"` or `"lightgbm"`, categorical features get native categorical splits: the
+booster sorts the levels by their gradient statistics and splits them into two groups, with no one-hot
+expansion and no artificial order. Pass a DataFrame with `category` columns (the default
+`categorical_features="from_dtype"` picks them up), or name the columns:
+
+```python
+df["region"] = df["region"].astype("category")          # or categorical_features=["region", ...]
+sel = TRexBoostSelector(fdr=0.1, booster="xgboost").fit(df, y)
+sel.is_categorical_                                     # which features were split as categories
+sel.set_output(transform="pandas").transform(df)        # selected columns, categories intact
+```
+
+**The dummies have to match the type.** A categorical split can group the levels any way it likes. A null
+category with 50 levels can therefore always find a grouping that fits noise, and its best spurious gain
+is far larger than a numeric null's. Numeric dummies cannot compete with it, so the FDP estimate misses
+those false entries. Here every dummy copies the type of the real column it is built from. A categorical
+column's dummies are always permuted copies of it, with the same levels, level frequencies and missing
+share, whatever `dummies` is set to. With `dummies="knockoff"`, the Gaussian knockoff model is fitted to
+the numeric columns only.
+
+Simulation ([`benchmarks/categorical_fdr.py`](benchmarks/categorical_fdr.py)): n = 600, 12 numeric and 12
+categorical features (50 levels, skewed frequencies), 6 signals (2 categorical, 4 numeric including an
+interaction), XGBoost, target FDR 10%, 16 replications.
+
+| Treatment of the 12 categorical features | Mean FDP | Power | Categorical power | Null categoricals selected |
+|---|---|---|---|---|
+| Native categorical splits, type-matched dummies (this package) | **4.7%** | 52% | **100%** | 0.19 |
+| Native categorical splits, Gaussian (numeric) dummies | 72.5% | 71% | 100% | 10.0 of 10 |
+| Integer codes treated as numeric (`categorical_features=None`) | 2.8% | 58% | 78% | 0.13 |
+
+Matched dummies keep the FDR within target and find the categorical signals every time. The cost lands on
+weak numeric signals: many-level categorical dummies enter early, so experiments stop sooner. In this
+simulation that cut numeric power from 48% to 28%. If the categorical features are many-level and the
+numeric signals matter most, compare against `categorical_features=None`, or limit how freely categories
+split through `booster_params` (XGBoost `max_cat_to_onehot` / `max_cat_threshold`, LightGBM `cat_smooth` /
+`max_cat_threshold`).
+
 ## Choosing the settings
 
 **Target FDR: decide what the selection is for.**
@@ -222,7 +262,8 @@ what random picks of the same size would score.
 
 ## API
 
-`TRexBoostSelector(fdr=0.1, *, task="auto", booster="native", dummies="permutation", n_experiments=20,
+`TRexBoostSelector(fdr=0.1, *, task="auto", booster="native", dummies="permutation",
+categorical_features="from_dtype", n_experiments=20,
 max_dummy_multiplier=10, max_dummies_entered=50, learning_rate=0.1, max_depth=1, min_samples_leaf=10,
 n_bins=32, max_rounds=3000, booster_params=None, max_samples=None, n_jobs=None, random_state=None,
 verbose=0)`
@@ -234,12 +275,16 @@ It is a scikit-learn `SelectorMixin` and passes `sklearn.utils.estimator_checks`
   `set_params`.
 - **Fitted attributes:** `support_`, `scores_` (relative occurrence at the calibrated T), `ranking_`
   (1 = best; also orders features that never entered), `n_dummies_` (L), `T_`, `voting_threshold_` (v),
-  `fdp_hat_`, `entry_ranks_`, `gain_`, `calibration_`, `task_`, `classes_`, `fit_time_`,
+  `fdp_hat_`, `entry_ranks_`, `gain_`, `calibration_`, `is_categorical_`, `task_`, `classes_`, `fit_time_`,
   `n_features_in_`, `feature_names_in_`.
 - **Targets:** continuous (regression), binary and multiclass. For an integer-valued regression target
   such as counts, set `task="regression"`.
-- **Missing values:** allowed with `booster="lightgbm"` or `"xgboost"`, except together with
-  `dummies="knockoff"`.
+- **Missing values:** allowed with `booster="lightgbm"` or `"xgboost"`. With `dummies="knockoff"`,
+  only in categorical columns.
+- **Categorical features:** `categorical_features="from_dtype"` (pandas `category` columns), a boolean
+  mask, integer indices, column names, or `None`. Native splits with `booster="xgboost"` or
+  `"lightgbm"`. String columns named in the list are encoded. Numeric columns must hold non-negative
+  integer codes.
 - **Helpers:** `trexboost.nogueira_stability(selections)`, `trexboost.stability_report(selector, X, y)`.
 
 ## Evidence so far

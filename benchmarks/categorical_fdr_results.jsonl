@@ -1,0 +1,48 @@
+{"mode": "naive", "seed": 0, "n_sel": 16, "fdp": 0.75, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1", "num7", "num8"]}
+{"mode": "ordinal", "seed": 0, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 1, "null_cat": 0, "sel": ["cat1", "num0", "num1"]}
+{"mode": "matched", "seed": 0, "n_sel": 4, "fdp": 0.0, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0", "num1"]}
+{"mode": "naive", "seed": 1, "n_sel": 21, "fdp": 0.7619047619047619, "tpr": 0.8333333333333334, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1", "num10", "num2", "num4", "num5", "num7", "num8", "num9"]}
+{"mode": "ordinal", "seed": 1, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 1, "null_cat": 0, "sel": ["cat0", "num0", "num1"]}
+{"mode": "matched", "seed": 1, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0"]}
+{"mode": "naive", "seed": 2, "n_sel": 14, "fdp": 0.7142857142857143, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1"]}
+{"mode": "ordinal", "seed": 2, "n_sel": 5, "fdp": 0.2, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 1, "sel": ["cat0", "cat1", "cat8", "num0", "num1"]}
+{"mode": "matched", "seed": 2, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0"]}
+{"mode": "naive", "seed": 3, "n_sel": 16, "fdp": 0.6875, "tpr": 0.8333333333333334, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1", "num11", "num2"]}
+{"mode": "ordinal", "seed": 3, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 1, "null_cat": 0, "sel": ["cat0", "num0", "num1"]}
+{"mode": "matched", "seed": 3, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0"]}
+{"mode": "naive", "seed": 4, "n_sel": 16, "fdp": 0.6875, "tpr": 0.8333333333333334, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1", "num2", "num4"]}
+{"mode": "ordinal", "seed": 4, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 1, "null_cat": 0, "sel": ["cat0", "num0", "num1"]}
+{"mode": "matched", "seed": 4, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0"]}
+{"mode": "naive", "seed": 5, "n_sel": 14, "fdp": 0.7142857142857143, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1"]}
+{"mode": "ordinal", "seed": 5, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 1, "null_cat": 0, "sel": ["cat0", "num0", "num1"]}
+{"mode": "matched", "seed": 5, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0"]}
+{"mode": "naive", "seed": 6, "n_sel": 15, "fdp": 0.7333333333333333, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1", "num11"]}
+{"mode": "ordinal", "seed": 6, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 1, "null_cat": 0, "sel": ["cat1", "num0", "num1"]}
+{"mode": "matched", "seed": 6, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0"]}
+{"mode": "naive", "seed": 7, "n_sel": 14, "fdp": 0.7142857142857143, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1"]}
+{"mode": "ordinal", "seed": 7, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0"]}
+{"mode": "matched", "seed": 7, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0"]}
+{"mode": "naive", "seed": 8, "n_sel": 15, "fdp": 0.7333333333333333, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1", "num11"]}
+{"mode": "ordinal", "seed": 8, "n_sel": 4, "fdp": 0.25, "tpr": 0.5, "cat_tp": 1, "null_cat": 1, "sel": ["cat0", "cat7", "num0", "num1"]}
+{"mode": "matched", "seed": 8, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0"]}
+{"mode": "naive", "seed": 9, "n_sel": 14, "fdp": 0.7142857142857143, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1"]}
+{"mode": "ordinal", "seed": 9, "n_sel": 4, "fdp": 0.0, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0", "num1"]}
+{"mode": "matched", "seed": 9, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0"]}
+{"mode": "naive", "seed": 10, "n_sel": 15, "fdp": 0.7333333333333333, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1", "num8"]}
+{"mode": "ordinal", "seed": 10, "n_sel": 4, "fdp": 0.0, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0", "num1"]}
+{"mode": "matched", "seed": 10, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0"]}
+{"mode": "naive", "seed": 11, "n_sel": 17, "fdp": 0.7647058823529411, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1", "num10", "num11", "num6"]}
+{"mode": "matched", "seed": 11, "n_sel": 4, "fdp": 0.25, "tpr": 0.5, "cat_tp": 2, "null_cat": 1, "sel": ["cat0", "cat1", "cat8", "num0"]}
+{"mode": "ordinal", "seed": 11, "n_sel": 4, "fdp": 0.0, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0", "num1"]}
+{"mode": "naive", "seed": 12, "n_sel": 16, "fdp": 0.75, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1", "num4", "num8"]}
+{"mode": "ordinal", "seed": 12, "n_sel": 4, "fdp": 0.0, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0", "num1"]}
+{"mode": "matched", "seed": 12, "n_sel": 4, "fdp": 0.0, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0", "num1"]}
+{"mode": "naive", "seed": 13, "n_sel": 15, "fdp": 0.6666666666666666, "tpr": 0.8333333333333334, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1", "num3"]}
+{"mode": "ordinal", "seed": 13, "n_sel": 4, "fdp": 0.0, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0", "num1"]}
+{"mode": "matched", "seed": 13, "n_sel": 4, "fdp": 0.25, "tpr": 0.5, "cat_tp": 2, "null_cat": 1, "sel": ["cat0", "cat1", "cat2", "num0"]}
+{"mode": "naive", "seed": 14, "n_sel": 14, "fdp": 0.7142857142857143, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1"]}
+{"mode": "ordinal", "seed": 14, "n_sel": 4, "fdp": 0.0, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0", "num1"]}
+{"mode": "matched", "seed": 14, "n_sel": 4, "fdp": 0.25, "tpr": 0.5, "cat_tp": 2, "null_cat": 1, "sel": ["cat0", "cat1", "cat11", "num0"]}
+{"mode": "naive", "seed": 15, "n_sel": 17, "fdp": 0.7647058823529411, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 10, "sel": ["cat0", "cat1", "cat10", "cat11", "cat2", "cat3", "cat4", "cat5", "cat6", "cat7", "cat8", "cat9", "num0", "num1", "num11", "num8", "num9"]}
+{"mode": "matched", "seed": 15, "n_sel": 3, "fdp": 0.0, "tpr": 0.5, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0"]}
+{"mode": "ordinal", "seed": 15, "n_sel": 4, "fdp": 0.0, "tpr": 0.6666666666666666, "cat_tp": 2, "null_cat": 0, "sel": ["cat0", "cat1", "num0", "num1"]}
