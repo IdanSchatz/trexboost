@@ -17,11 +17,6 @@ selector.get_feature_names_out()   # the features T-Rex can vouch for at a 10% t
 X_small = selector.transform(X)
 ```
 
-> **Status: research software (alpha).** The original T-Rex selector has a finite-sample FDR guarantee
-> for its linear forward selector. The gradient-boosting variant here has **no proof**: its FDR control is
-> supported by simulations (see [Evidence](#evidence-so-far)), and it can exceed the target on strongly
-> correlated features unless you use `dummies="knockoff"`.
-
 ---
 
 ## Contents

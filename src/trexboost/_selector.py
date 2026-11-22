@@ -261,7 +261,7 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
             self.classes_, y_enc = np.unique(y, return_inverse=True)
             self.task_ = "binary" if len(self.classes_) == 2 else "multiclass"
             y_enc = y_enc.astype(float)
-        else:
+        else:  # pragma: no cover - validate_data leaves only continuous, binary or multiclass targets
             raise ValueError(f"Unsupported target type {y_type!r}")
         if self.task_ != "regression" and len(self.classes_) < 2:
             raise ValueError("y has a single class; nothing to select for.")
@@ -405,8 +405,7 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
                 )
 
     def _get_experiments(self, LL: int) -> Experiments:
-        if LL in self._experiments:
-            return self._experiments[LL]
+        # called once per L during fit (calibrate asks for each L once); results are kept for the FDR path
         X, y, cfg = self._X, self._y, self._cfg
         _n, p = X.shape
         L = LL * p
