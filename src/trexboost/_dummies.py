@@ -110,3 +110,23 @@ class DummyGenerator:
         for i in np.flatnonzero(self.dummy_is_categorical(L)):
             D[:, i] = self.X[rng.permutation(n), i % p]
         return D
+
+    def draw_codes(self, L: int, rng: np.random.Generator, codes: np.ndarray, base: np.ndarray) -> np.ndarray:
+        """Bin codes of ``L`` dummies for the native backend, without materializing and re-binning them.
+
+        ``codes`` are the real columns' codes; ``base`` the codes of a tie-free column (what a continuous
+        dummy bins to). A permuted copy of a column has the permuted codes of that column, and a Gaussian
+        dummy's codes are a uniformly random permutation of ``base``. Knockoff dummies are not supported
+        here (their codes depend on their values).
+        """
+        n, p = self.n, self.p
+        D = np.empty((n, L), dtype=np.int32)
+        if self.kind == "permutation":
+            for i in range(L):
+                D[:, i] = codes[rng.permutation(n), i % p]
+        elif self.kind == "gaussian":
+            for i in range(L):
+                D[:, i] = base[rng.permutation(n)]
+        else:
+            raise ValueError("draw_codes supports permutation and gaussian dummies only")
+        return D

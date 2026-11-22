@@ -46,6 +46,7 @@ class BoostConfig:
     chunk: int = 100
     dummy_mask: np.ndarray | None = None  # True for dummy columns (columns may be shuffled)
     categorical: np.ndarray | None = None  # True for categorical columns (same order as the columns)
+    prebinned: bool = False  # native backend: X already holds the bin codes
 
     @property
     def has_categorical(self) -> bool:
@@ -79,15 +80,20 @@ class _EntryRecorder:
 
 # --------------------------------------------------------------------------------------------- native
 def _bin(X: np.ndarray, B: int) -> np.ndarray:
+    """Per-column bin codes in [0, B): the dense rank of the value if the column has at most ``B``
+    distinct values, otherwise ``floor(rank * B / n)`` with stable ranks (equal-frequency bins)."""
     n, p = X.shape
+    order = np.argsort(X, axis=0, kind="stable")
+    Xs = np.take_along_axis(X, order, axis=0)
+    new = np.empty((n, p), dtype=bool)
+    new[0] = True
+    new[1:] = Xs[1:] != Xs[:-1]
+    dense = np.cumsum(new, axis=0, dtype=np.int32) - 1  # dense rank along the sorted order
+    few = dense[-1] < B  # at most B distinct values
+    ranks_sorted = np.broadcast_to(np.arange(n, dtype=np.int64)[:, None] * B // n, (n, p))
+    sorted_codes = np.where(few[None, :], dense, ranks_sorted).astype(np.int32)
     codes = np.empty((n, p), dtype=np.int32)
-    for j in range(p):
-        u = np.unique(X[:, j])
-        if len(u) <= B:
-            codes[:, j] = np.searchsorted(u, X[:, j])
-        else:
-            ranks = np.argsort(np.argsort(X[:, j], kind="stable"), kind="stable")
-            codes[:, j] = (ranks * B) // n
+    np.put_along_axis(codes, order, sorted_codes, axis=0)
     return codes
 
 
@@ -100,36 +106,52 @@ def _native_targets(y: np.ndarray, cfg: BoostConfig) -> np.ndarray:
 
 
 def native_entry(X: np.ndarray, y: np.ndarray, cfg: BoostConfig, rng: np.random.Generator):
+    """Squared-error stump boosting on histogram bins.
+
+    A stump moves every residual by one of two values, so the per-bin residual sums change by those two
+    values times the bin counts of the rows on each side. Instead of re-histogramming all columns each
+    round, the cumulative left-of-threshold sums ``SL`` are updated from the cumulative counts of the
+    smaller side of the chosen split (cached per split, since boosting re-uses splits). This is exact up
+    to floating-point rounding.
+    """
     if cfg.max_depth != 1:
         raise ValueError("booster='native' supports max_depth=1 (stumps) only; use 'lightgbm' or 'xgboost'.")
     if cfg.has_categorical:
         raise ValueError("booster='native' has no categorical splits; use 'xgboost' or 'lightgbm'.")
-    codes = _bin(X, cfg.n_bins)
+    codes = X.astype(np.int32, copy=False) if cfg.prebinned else _bin(X, cfg.n_bins)
     Y = _native_targets(y, cfg)
     n, F = codes.shape
     B, C = cfg.n_bins, Y.shape[1]
-    flat = (codes + (np.arange(F) * B)[None, :]).ravel()
+    flat2d = codes + (np.arange(F, dtype=np.int32) * B)[None, :]
+    flat = flat2d.ravel()
     cnt = np.bincount(flat, minlength=F * B).reshape(F, B).astype(float)
     NL = np.cumsum(cnt, axis=1)[:, :-1]
     NR = n - NL
     valid = (NL >= cfg.min_samples_leaf) & (NR >= cfg.min_samples_leaf)
-    NLs, NRs = np.where(valid, NL, 1.0), np.where(valid, NR, 1.0)
-    f = np.tile(Y.mean(axis=0), (n, 1))
+    iNL = np.where(valid, 1.0 / np.maximum(NL, 1.0), 0.0)
+    iNR = np.where(valid, 1.0 / np.maximum(NR, 1.0), 0.0)
+    R = Y - Y.mean(axis=0)  # residuals of the initial constant fit
+    SL = np.empty((C, F, B - 1))
+    for c in range(C):
+        S = np.bincount(flat, weights=np.broadcast_to(R[:, c : c + 1], (n, F)).ravel(), minlength=F * B)
+        SL[c] = np.cumsum(S.reshape(F, B), axis=1)[:, :-1]
+    tot = R.sum(axis=0)
+    cache: dict[tuple[int, int], tuple[bool, np.ndarray]] = {}
+    g = np.empty((F, B - 1))
+    tmp = np.empty((F, B - 1))
     rec = _EntryRecorder(F, cfg)
     rounds = 0
     for rounds in range(1, cfg.max_rounds + 1):  # noqa: B007
-        R = Y - f
-        g = np.zeros((F, B - 1))
-        SLs, SRs = [], []
+        g.fill(0.0)
         for c in range(C):
-            S = np.bincount(flat, weights=np.broadcast_to(R[:, c : c + 1], (n, F)).ravel(), minlength=F * B)
-            SL = np.cumsum(S.reshape(F, B), axis=1)[:, :-1]
-            tot = R[:, c].sum()
-            SR = tot - SL
-            g += SL**2 / NLs + SR**2 / NRs - tot**2 / n
-            SLs.append(SL)
-            SRs.append(SR)
-        g = np.where(valid, g, -np.inf)
+            np.multiply(SL[c], SL[c], out=tmp)
+            tmp *= iNL
+            g += tmp
+            np.subtract(tot[c], SL[c], out=tmp)
+            np.multiply(tmp, tmp, out=tmp)
+            tmp *= iNR
+            g += tmp
+        g -= float((tot**2).sum()) / n  # gain; invalid cells sit at -tot^2/n <= 0
         gmax = g.max()
         if not np.isfinite(gmax) or gmax <= 1e-12:
             break
@@ -137,8 +159,24 @@ def native_entry(X: np.ndarray, y: np.ndarray, cfg: BoostConfig, rng: np.random.
         k = int(cand[rng.integers(len(cand))]) if len(cand) > 1 else int(cand[0])  # random tie-break
         j, b = divmod(k, B - 1)
         left = codes[:, j] <= b
+        nl, nr = NL[j, b], NR[j, b]
+        a = cfg.learning_rate * SL[:, j, b] / nl  # (C,) update on the left
+        r = cfg.learning_rate * (tot - SL[:, j, b]) / nr  # (C,) update on the right
+        R -= np.where(left[:, None], a[None, :], r[None, :])
+        hit = cache.get((j, b))
+        if hit is None:
+            small_left = nl <= nr
+            rows = left if small_left else ~left
+            Hc = np.bincount(flat2d[rows].ravel(), minlength=F * B).reshape(F, B)
+            hit = (small_left, np.cumsum(Hc, axis=1)[:, :-1].astype(float))
+            if len(cache) >= 64:
+                cache.pop(next(iter(cache)))
+            cache[(j, b)] = hit
+        small_left, cum_small = hit
+        cum_left = cum_small if small_left else NL - cum_small
         for c in range(C):
-            f[:, c] += cfg.learning_rate * np.where(left, SLs[c][j, b] / NL[j, b], SRs[c][j, b] / NR[j, b])
+            SL[c] -= (a[c] - r[c]) * cum_left + r[c] * NL
+        tot -= a * nl + r * nr
         if rec.add_round([(float(gmax), j)]):
             break
     return np.asarray(rec.order, dtype=int), rec.gain, rounds
