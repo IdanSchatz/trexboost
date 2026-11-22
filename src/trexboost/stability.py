@@ -53,7 +53,8 @@ def stability_report(
 ):
     """Nogueira stability index and per-feature selection frequency over subsamples.
 
-    Returns ``(index, frequencies)`` where ``frequencies`` is a DataFrame sorted by frequency.
+    Returns ``(index, frequencies, sizes)``: the index, a DataFrame of per-feature selection frequencies
+    sorted by frequency, and the number of features selected in each resample.
     """
     S, sizes = resample_selections(selector, X, y, n_resamples, sample_fraction, random_state)
     if feature_names is None:

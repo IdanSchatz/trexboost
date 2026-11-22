@@ -80,3 +80,10 @@ known-local-folder = ["conftest"]
 testpaths = ["tests"]
 addopts = "-ra"
 filterwarnings = ["ignore::UserWarning:lightgbm", "ignore::FutureWarning:xgboost"]
+
+[tool.coverage.run]
+branch = true
+source = ["trexboost"]
+
+[tool.coverage.report]
+exclude_also = ["if TYPE_CHECKING:"]
