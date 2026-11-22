@@ -14,7 +14,7 @@ from sklearn.utils import check_random_state
 from sklearn.utils.multiclass import type_of_target
 from sklearn.utils.validation import check_is_fitted, validate_data
 
-from trexboost._backends import BACKENDS, BoostConfig
+from trexboost._backends import BACKENDS, BoostConfig, _bin
 from trexboost._calibration import Calibration, Experiments, calibrate
 from trexboost._dummies import DummyGenerator
 
@@ -290,6 +290,11 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
             categorical=self.is_categorical_ if has_cat else None,
         )
         self._X, self._y = X, y_enc
+        self._codes = None
+        if self.booster == "native" and self.dummies in ("permutation", "gaussian"):
+            # bin once; dummies are drawn directly as codes (see DummyGenerator.draw_codes)
+            self._codes = _bin(X, int(self.n_bins))
+            self._base_codes = _bin(np.arange(n, dtype=float)[:, None], int(self.n_bins))[:, 0]
         self._experiments: dict[int, Experiments] = {}
         cal = calibrate(
             self._get_experiments,
@@ -313,7 +318,8 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
                 "Raise max_dummy_multiplier or fdr.",
                 stacklevel=2,
             )
-        del self._X, self._y
+        del self._X, self._y, self._codes
+        self.__dict__.pop("_base_codes", None)
         self.fit_time_ = time.perf_counter() - t0
         return self
 
@@ -416,8 +422,12 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
         gain = np.zeros(p)
         rounds = np.zeros(K)
         for k in range(K):
-            D = self._dummy_gen.draw(L, self._rng)
-            Z = np.hstack([X, D])
+            if self._codes is not None:
+                D = self._dummy_gen.draw_codes(L, self._rng, self._codes, self._base_codes)
+                Z = np.hstack([self._codes, D])
+            else:
+                D = self._dummy_gen.draw(L, self._rng)
+                Z = np.hstack([X, D])
             # shuffle columns so that no backend's index-order tie-breaking favours real columns or dummies
             perm = self._rng.permutation(p + L)
             inv = np.empty_like(perm)
@@ -425,7 +435,8 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
             cat = None
             if cfg.categorical is not None:
                 cat = np.concatenate([cfg.categorical, self._dummy_gen.dummy_is_categorical(L)])[perm]
-            cfg_k = BoostConfig(**{**cfg.__dict__, "dummy_mask": perm >= p, "categorical": cat})
+            overrides = {"dummy_mask": perm >= p, "categorical": cat, "prebinned": self._codes is not None}
+            cfg_k = BoostConfig(**{**cfg.__dict__, **overrides})
             order_s, gain_s, n_rounds = backend(Z[:, perm], y, cfg_k, self._rng)
             order = perm[order_s]
             g = np.zeros(p + L)

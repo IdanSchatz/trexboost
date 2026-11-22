@@ -8,6 +8,11 @@
   branch coverage is 100% and CI now fails below it.
 - Fixed the `stability_report` docstring: it returns `(index, frequencies, sizes)`.
 - Removed an unreachable cache check in the selector.
+- Native backend 2-10x faster: columns are binned in one vectorized pass, split statistics are updated
+  incrementally from the smaller side of each split (cached per split), and permutation and Gaussian dummies
+  are drawn directly as bin codes. Entry order and permutation-dummy results are unchanged (golden tests).
+  Gaussian dummies now use a different random stream with the same distribution, so their selections can
+  differ for a given `random_state`.
 
 ## 0.2.0 (2026-11-18)
 

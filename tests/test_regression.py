@@ -26,6 +26,7 @@ from trexboost._calibration import (
     phi_matrix,
     voting_grid,
 )
+from trexboost._dummies import DummyGenerator
 
 from conftest import FAST, make_data
 
@@ -262,3 +263,50 @@ def test_feature_names_round_trip():
     sel = TRexBoostSelector(fdr=0.2, random_state=0, **FAST).fit(df, y)
     assert set(sel.get_feature_names_out()) <= set(df.columns)
     assert list(sel.get_feature_names_out_all()) == list(df.columns)
+
+
+# ------------------------------------------------------------------------- prebinned dummies (native backend)
+def test_binning_is_unchanged_by_the_vectorized_rewrite():
+    """_bin must give the same codes as the per-column definition: dense rank if <= B distinct values,
+    else floor(stable rank * B / n)."""
+    from trexboost._backends import _bin
+
+    rng = np.random.default_rng(0)
+    X = np.c_[
+        rng.standard_normal((300, 5)),
+        rng.integers(0, 4, (300, 3)),
+        np.round(rng.standard_normal((300, 3)), 1),
+        np.ones((300, 1)),
+        rng.integers(0, 50, (300, 2)),
+    ].astype(float)
+    for B in (2, 8, 32):
+        got = _bin(X, B)
+        for j in range(X.shape[1]):
+            u = np.unique(X[:, j])
+            if len(u) <= B:
+                want = np.searchsorted(u, X[:, j])
+            else:
+                ranks = np.argsort(np.argsort(X[:, j], kind="stable"), kind="stable")
+                want = ranks * B // len(X)
+            np.testing.assert_array_equal(got[:, j], want)
+
+
+def test_prebinned_dummies_match_binned_dummies_in_distribution():
+    """A permuted column's codes are the permuted codes; a continuous dummy bins to a permutation of the
+    tie-free base codes. So drawing codes directly is the same draw as drawing values and binning them."""
+    from trexboost._backends import _bin
+
+    rng = np.random.default_rng(1)
+    n, B = 157, 32
+    X = np.c_[rng.standard_normal((n, 3)), rng.integers(0, 5, (n, 2))].astype(float)
+    codes = _bin(X, B)
+    base = _bin(np.arange(n, dtype=float)[:, None], B)[:, 0]
+    np.testing.assert_array_equal(np.sort(_bin(rng.standard_normal((n, 1)), B)[:, 0]), np.sort(base))
+    perm = DummyGenerator("permutation", X).draw_codes(10, np.random.default_rng(2), codes, base)
+    vals = DummyGenerator("permutation", X).draw(10, np.random.default_rng(2))
+    np.testing.assert_array_equal(perm, _bin(vals, B))  # same permutations, same codes
+    gauss = DummyGenerator("gaussian", X).draw_codes(10, np.random.default_rng(3), codes, base)
+    for i in range(10):
+        np.testing.assert_array_equal(np.sort(gauss[:, i]), np.sort(base))
+    with pytest.raises(ValueError, match="permutation and gaussian"):
+        DummyGenerator("knockoff", X).draw_codes(2, rng, codes, base)
