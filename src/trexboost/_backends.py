@@ -12,9 +12,14 @@ Backends
 ``"native"``   NumPy histogram booster, squared-error loss on the target (regression), on the 0/1 label
                (binary) or on one-hot labels with the gain summed over classes (multiclass). Stumps only
                (``max_depth=1``). No extra dependency; needs finite X.
-``"lightgbm"`` ``lightgbm.train`` with the task's native objective. Handles missing values.
+``"lightgbm"`` ``lightgbm.train`` with the task's native objective. Handles missing values and native
+               categorical splits (``categorical_feature``).
 ``"xgboost"``  ``xgboost.train`` (``tree_method="hist"``) with the task's native objective. Handles
-               missing values.
+               missing values and native categorical splits (``enable_categorical``).
+
+Categorical columns arrive as non-negative integer codes (``NaN`` = missing) with ``BoostConfig.categorical``
+marking them. Both libraries dump a categorical split with the same feature and gain fields as a numeric
+one, so entry order and gain are read the same way.
 """
 
 from __future__ import annotations
@@ -40,6 +45,11 @@ class BoostConfig:
     n_jobs: int
     chunk: int = 100
     dummy_mask: np.ndarray | None = None  # True for dummy columns (columns may be shuffled)
+    categorical: np.ndarray | None = None  # True for categorical columns (same order as the columns)
+
+    @property
+    def has_categorical(self) -> bool:
+        return self.categorical is not None and bool(np.any(self.categorical))
 
 
 class _EntryRecorder:
@@ -92,6 +102,8 @@ def _native_targets(y: np.ndarray, cfg: BoostConfig) -> np.ndarray:
 def native_entry(X: np.ndarray, y: np.ndarray, cfg: BoostConfig, rng: np.random.Generator):
     if cfg.max_depth != 1:
         raise ValueError("booster='native' supports max_depth=1 (stumps) only; use 'lightgbm' or 'xgboost'.")
+    if cfg.has_categorical:
+        raise ValueError("booster='native' has no categorical splits; use 'xgboost' or 'lightgbm'.")
     codes = _bin(X, cfg.n_bins)
     Y = _native_targets(y, cfg)
     n, F = codes.shape
@@ -160,12 +172,21 @@ def lightgbm_entry(X: np.ndarray, y: np.ndarray, cfg: BoostConfig, rng: np.rando
         "num_threads": cfg.n_jobs,
         "seed": int(rng.integers(2**31 - 1)),
     }
+    if cfg.has_categorical:
+        # LightGBM's default (100 rows per category group) would block most categorical splits on
+        # moderate n; match the numeric leaf constraint instead. cat_smooth / cat_l2 keep their defaults.
+        params["min_data_per_group"] = cfg.min_samples_leaf
     if cfg.task == "multiclass":
         params["num_class"] = cfg.n_classes
     params.update(cfg.booster_params)
     trees_per_round = cfg.n_classes if cfg.task == "multiclass" else 1
+    cat_idx = np.flatnonzero(cfg.categorical).tolist() if cfg.has_categorical else "auto"
     data = lgb.Dataset(
-        X, label=y, params={"max_bin": params["max_bin"], "feature_pre_filter": False}, free_raw_data=False
+        X,
+        label=y,
+        categorical_feature=cat_idx,
+        params={"max_bin": params["max_bin"], "feature_pre_filter": False},
+        free_raw_data=False,
     )
     rec = _EntryRecorder(X.shape[1], cfg)
     booster, done = None, 0
@@ -232,7 +253,19 @@ def xgboost_entry(X: np.ndarray, y: np.ndarray, cfg: BoostConfig, rng: np.random
     params.update(cfg.booster_params)
     trees_per_round = cfg.n_classes if cfg.task == "multiclass" else 1
     names = [f"c{j}" for j in range(X.shape[1])]
-    dtrain = xgb.DMatrix(X, label=y, missing=np.nan, feature_names=names, nthread=cfg.n_jobs)
+    if cfg.has_categorical:
+        types = ["c" if c else "q" for c in cfg.categorical]
+        dtrain = xgb.DMatrix(
+            X,
+            label=y,
+            missing=np.nan,
+            feature_names=names,
+            feature_types=types,
+            enable_categorical=True,
+            nthread=cfg.n_jobs,
+        )
+    else:
+        dtrain = xgb.DMatrix(X, label=y, missing=np.nan, feature_names=names, nthread=cfg.n_jobs)
     col = {nm: j for j, nm in enumerate(names)}
     rec = _EntryRecorder(X.shape[1], cfg)
     booster, done = None, 0

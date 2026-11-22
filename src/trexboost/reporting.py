@@ -97,7 +97,8 @@ class SelectionReport:
     def feature_table(self, top: int | None = None) -> pd.DataFrame:
         """One row per feature, sorted by rank.
 
-        Columns: ``rank``, ``feature``, ``selected``, ``occurrence`` (relative occurrence at ``T``; selected
+        Columns: ``rank``, ``feature``, ``categorical`` (only when some feature is categorical),
+        ``selected``, ``occurrence`` (relative occurrence at ``T``; selected
         when above ``voting_threshold_``), ``occurrence_at_cap`` (share of experiments in which the feature
         entered before the experiment stopped), ``median_entry_step`` (boosting step of first split, over
         the experiments where it entered), ``gain_share`` (share of total split gain on real features), and
@@ -118,6 +119,8 @@ class SelectionReport:
                 "gain_share": s.gain_ / total if total > 0 else s.gain_,
             }
         )
+        if getattr(s, "is_categorical_", None) is not None and s.is_categorical_.any():
+            df.insert(2, "categorical", s.is_categorical_)
         if self._stability is not None:
             freq = self._stability[1].set_index("feature")["selection_frequency"]
             df["selection_frequency"] = df["feature"].map(freq).to_numpy()

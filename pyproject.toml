@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "trexboost"
-version = "0.1.0"
+version = "0.2.0"
 description = "FDR-controlled feature selection: the T-Rex selector with gradient-boosted trees (native, LightGBM or XGBoost) as the forward selector, with an sklearn-compatible API."
 readme = "README.md"
 license = "Apache-2.0"

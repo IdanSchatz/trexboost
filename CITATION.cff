@@ -5,8 +5,8 @@ type: software
 authors:
   - family-names: Schatz
     given-names: Idan
-version: 0.1.0
-date-released: 2026-11-17
+version: 0.2.0
+date-released: 2026-11-18
 license: Apache-2.0
 repository-code: "https://github.com/IdanSchatz/trexboost"
 keywords: [feature selection, false discovery rate, T-Rex selector, gradient boosting, knockoffs]

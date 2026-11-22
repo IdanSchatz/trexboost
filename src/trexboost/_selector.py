@@ -45,7 +45,21 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
         How dummies are drawn. ``"permutation"`` (permuted copies of the real columns) is the default:
         best power, and correct when features are roughly independent. ``"knockoff"`` (Gaussian model-X
         knockoffs, rank-mapped onto each column's values) keeps the FDR near target when features are
-        correlated, at a cost in power. ``"gaussian"`` is the original T-Rex choice.
+        correlated, at a cost in power. ``"gaussian"`` is the original T-Rex choice. Dummies of categorical
+        features are always permuted copies (see ``categorical_features``).
+    categorical_features : "from_dtype", array-like of bool, int or str, or None, default="from_dtype"
+        Features to split on as categories (native categorical splits in XGBoost and LightGBM), following
+        the convention of :class:`~sklearn.ensemble.HistGradientBoostingClassifier`:
+
+        - ``"from_dtype"``: DataFrame columns with ``category`` dtype; nothing for arrays.
+        - boolean mask of length ``n_features``, integer indices, or column names.
+        - ``None``: treat every feature as numeric.
+
+        Pandas ``category`` and string columns are encoded to their category codes. Numeric columns marked
+        as categorical must hold non-negative integer codes. Missing values are allowed. Each categorical
+        feature gets dummies that are permuted copies of it (same levels and frequencies), so a
+        many-level null competes against dummies with the same splitting freedom. Requires
+        ``booster="xgboost"`` or ``"lightgbm"``.
     n_experiments : int, default=20
         Number of random experiments ``K``.
     max_dummy_multiplier : int, default=10
@@ -80,6 +94,8 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
         Boolean mask of selected features.
     scores_ : ndarray of shape (n_features_in_,)
         Relative occurrence of each feature at the calibrated ``T`` (in [0, 1]).
+    is_categorical_ : ndarray of shape (n_features_in_,)
+        Boolean mask of the features treated as categorical.
     ranking_ : ndarray of shape (n_features_in_,)
         Rank of each feature (1 = best): relative occurrence at the calibrated ``T``, then at the dummy
         cap, then mean split gain over the experiments, so features that never entered are still ordered.
@@ -124,6 +140,7 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
         task="auto",
         booster="native",
         dummies="permutation",
+        categorical_features="from_dtype",
         n_experiments=20,
         max_dummy_multiplier=10,
         max_dummies_entered=50,
@@ -142,6 +159,7 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
         self.task = task
         self.booster = booster
         self.dummies = dummies
+        self.categorical_features = categorical_features
         self.n_experiments = n_experiments
         self.max_dummy_multiplier = max_dummy_multiplier
         self.max_dummies_entered = max_dummies_entered
@@ -161,6 +179,7 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
         tags = super().__sklearn_tags__()
         tags.target_tags.required = True
         tags.input_tags.allow_nan = self.booster in ("lightgbm", "xgboost")
+        tags.input_tags.categorical = self.booster in ("lightgbm", "xgboost")
         return tags
 
     def _get_support_mask(self):
@@ -198,8 +217,8 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
         Parameters
         ----------
         X : array-like or DataFrame of shape (n_samples, n_features)
-            Numeric features (encode categoricals first). Missing values are allowed with the LightGBM
-            and XGBoost backends.
+            Features. With the LightGBM and XGBoost backends, missing values are allowed and categorical
+            features (see ``categorical_features``) are split on natively.
         y : array-like of shape (n_samples,)
             Continuous target (regression) or class labels (classification).
 
@@ -210,6 +229,14 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
         t0 = time.perf_counter()
         self._check_params()
         allow_nan = self.booster in ("lightgbm", "xgboost") and self.dummies != "knockoff"
+        X, cat_mask = self._encode_categorical(X)
+        if cat_mask is not None and cat_mask.any():
+            if self.booster == "native":
+                raise ValueError(
+                    "booster='native' has no categorical splits; use booster='xgboost' or 'lightgbm', or "
+                    "pass categorical_features=None to treat the codes as numbers."
+                )
+            allow_nan = True  # missing categories are fine; knockoff checks its numeric columns itself
         X, y = validate_data(
             self,
             X,
@@ -219,6 +246,10 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
             y_numeric=False,
             ensure_min_samples=2 * self.min_samples_leaf + 1,
         )
+        self.is_categorical_ = (
+            np.zeros(X.shape[1], dtype=bool) if cat_mask is None else cat_mask.astype(bool, copy=True)
+        )
+        self._check_codes(X)
         rng = check_random_state(self.random_state)
         self._rng = np.random.default_rng(rng.randint(2**31 - 1))
 
@@ -242,7 +273,8 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
         self.n_samples_fit_ = n
         constant = np.nanstd(X, axis=0) == 0
 
-        self._dummy_gen = DummyGenerator(self.dummies, X)
+        has_cat = bool(self.is_categorical_.any())
+        self._dummy_gen = DummyGenerator(self.dummies, X, self.is_categorical_ if has_cat else None)
         self._cfg = BoostConfig(
             task=self.task_,
             n_classes=len(self.classes_) if self.task_ != "regression" else 1,
@@ -255,6 +287,7 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
             n_real=p,
             booster_params=dict(self.booster_params or {}),
             n_jobs=int(self.n_jobs or 1),
+            categorical=self.is_categorical_ if has_cat else None,
         )
         self._X, self._y = X, y_enc
         self._experiments: dict[int, Experiments] = {}
@@ -284,6 +317,93 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
         self.fit_time_ = time.perf_counter() - t0
         return self
 
+    def _encode_categorical(self, X):
+        """Resolve ``categorical_features``; return ``X`` with categorical columns as float codes and the
+        mask (``None`` when nothing is categorical)."""
+        spec = self.categorical_features
+        is_df = isinstance(X, pd.DataFrame)
+        if spec is None:
+            if is_df:
+                self._check_non_numeric(X, np.zeros(X.shape[1], dtype=bool))
+            return X, None
+        if isinstance(spec, str):
+            if spec != "from_dtype":
+                raise ValueError(
+                    "categorical_features must be 'from_dtype', None, a boolean mask, indices or names; "
+                    f"got {spec!r}"
+                )
+            if not is_df:
+                return X, None
+            mask = np.array([isinstance(dt, pd.CategoricalDtype) for dt in X.dtypes], dtype=bool)
+        else:
+            spec = np.asarray(spec)
+            n_cols = np.shape(X)[1] if np.ndim(X) == 2 else None
+            if spec.size == 0:
+                return X, None
+            if n_cols is None:
+                return X, None  # validate_data reports the shape error
+            if spec.dtype == bool:
+                if spec.shape != (n_cols,):
+                    raise ValueError(f"categorical_features mask: {spec.size} entries for {n_cols} columns")
+                mask = spec.copy()
+            elif spec.dtype.kind in "iu":
+                if spec.min() < -n_cols or spec.max() >= n_cols:
+                    raise ValueError(f"categorical_features indices must be in [0, {n_cols}), got {spec}")
+                mask = np.zeros(n_cols, dtype=bool)
+                mask[spec] = True
+            elif spec.dtype.kind in "UO":
+                if not is_df:
+                    raise ValueError("categorical_features given as names needs X as a DataFrame")
+                cols = [str(c) for c in X.columns]
+                missing = [str(c) for c in spec if str(c) not in cols]
+                if missing:
+                    raise ValueError(f"categorical_features not found in X: {missing}")
+                mask = np.isin(cols, spec.astype(str))
+            else:
+                raise ValueError(f"categorical_features has unsupported dtype {spec.dtype}")
+        if is_df:
+            self._check_non_numeric(X, mask)
+        if not mask.any():
+            return X, mask
+        if is_df:
+            X = X.copy()
+            for j in np.flatnonzero(mask):
+                col = X.iloc[:, j]
+                if isinstance(col.dtype, pd.CategoricalDtype):
+                    codes = col.cat.codes.to_numpy()
+                elif pd.api.types.is_numeric_dtype(col.dtype) and not pd.api.types.is_bool_dtype(col.dtype):
+                    X.isetitem(j, col.astype(float))
+                    continue
+                else:
+                    codes = pd.Categorical(col).codes
+                X.isetitem(j, np.where(codes < 0, np.nan, codes).astype(float))
+        return X, mask
+
+    @staticmethod
+    def _check_non_numeric(X: pd.DataFrame, mask: np.ndarray):
+        def numeric(dt):
+            if isinstance(dt, pd.CategoricalDtype):
+                return pd.api.types.is_numeric_dtype(dt.categories.dtype)
+            return pd.api.types.is_numeric_dtype(dt) or pd.api.types.is_bool_dtype(dt)
+
+        cols = zip(X.columns, X.dtypes, mask, strict=True)
+        bad = [str(c) for c, dt, m in cols if not m and not numeric(dt)]
+        if bad:
+            raise ValueError(
+                f"Columns {bad} are not numeric but are not in categorical_features; list them there "
+                "(or use categorical_features='from_dtype' with category dtype) or encode them."
+            )
+
+    def _check_codes(self, X: np.ndarray):
+        for j in np.flatnonzero(self.is_categorical_):
+            v = X[:, j]
+            v = v[np.isfinite(v)]
+            if v.size and (v.min() < 0 or not np.all(v == np.round(v))):
+                raise ValueError(
+                    f"categorical feature {j} must hold non-negative integer codes (or be a pandas "
+                    "category/string column)"
+                )
+
     def _get_experiments(self, LL: int) -> Experiments:
         if LL in self._experiments:
             return self._experiments[LL]
@@ -303,7 +423,10 @@ class TRexBoostSelector(SelectorMixin, BaseEstimator):
             perm = self._rng.permutation(p + L)
             inv = np.empty_like(perm)
             inv[perm] = np.arange(p + L)
-            cfg_k = BoostConfig(**{**cfg.__dict__, "dummy_mask": perm >= p})
+            cat = None
+            if cfg.categorical is not None:
+                cat = np.concatenate([cfg.categorical, self._dummy_gen.dummy_is_categorical(L)])[perm]
+            cfg_k = BoostConfig(**{**cfg.__dict__, "dummy_mask": perm >= p, "categorical": cat})
             order_s, gain_s, n_rounds = backend(Z[:, perm], y, cfg_k, self._rng)
             order = perm[order_s]
             g = np.zeros(p + L)
